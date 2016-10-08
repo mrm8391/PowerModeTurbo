@@ -11,7 +11,7 @@ class ofApp : public ofBaseApp{
 		void setup();
 		void update();
 		void draw();
-		void rendersExplosions();
+		void renderExplosions();
 		void initExplosions(int count, float xOrig, float yOrig);
 
 		void keyPressed(int key);

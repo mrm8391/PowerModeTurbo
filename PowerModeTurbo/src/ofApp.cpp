@@ -2,7 +2,7 @@
 #include <math.h>
 
 typedef struct Point_ {
-	float x, y;
+	float x, y, angle;
 } Point;
 
 typedef struct ColorAlpha_ {
@@ -129,7 +129,7 @@ void ofApp::draw(){
 	ofPopMatrix();
 
 	if (!activeParticles.empty())
-		rendersExplosions();
+		renderExplosions();
 }
 
 
@@ -209,7 +209,7 @@ void ofApp::keyPressed(int key){
 
 	comboCount++;
 	timeSinceLastKey = ofGetElapsedTimef();
-	initExplosions(10, ofRandom(0,ofGetScreenWidth()),ofRandom(0, ofGetScreenHeight()));
+	initExplosions(10, ofRandom(0, ofGetScreenWidth()), ofRandom(0, ofGetScreenHeight()));
 }
 
 void ofApp::initExplosions(int count,float xOrig,float yOrig) {
@@ -237,8 +237,12 @@ void ofApp::initExplosions(int count,float xOrig,float yOrig) {
 		//set x and y to be 1 unit away from the origin
 		Point p;
 		float angle = ofRandom(0, 360);
-		p.x = 500;// sin(angle) / tan(angle);
-		p.y = 500;// tan(angle)*cos(angle);
+		angle *= (180/PI);//convert to radians
+
+		p.x = xOrig+sin(angle) / tan(angle);
+		p.y = yOrig+tan(angle)*cos(angle);
+		p.angle = angle;
+
 		particles.push_back(p);
 	}
 
@@ -246,9 +250,9 @@ void ofApp::initExplosions(int count,float xOrig,float yOrig) {
 	particleColors.push_back(colors);
 }
 
-void ofApp::rendersExplosions() {
+void ofApp::renderExplosions() {
 	for(int h=0;h<activeParticles.size();h++){
-		vector<Point> pointSet = activeParticles.at(h);
+		vector<Point> &pointSet = activeParticles.at(h);
 		Point origin = pointSet.at(0);
 
 		//if alpha is zero, delete the particles
@@ -256,28 +260,62 @@ void ofApp::rendersExplosions() {
 			activeParticles.erase(activeParticles.begin()+h);
 			particleColors.erase(particleColors.begin() + h);
 			h--;
+			continue;
 		}
 
 		particleColors.at(h).at(0).alpha--;
 
 		for (int i = 1; i < pointSet.size(); i++) {
+			float hyp = 8;
 
-			/*float relX = pointSet.at(i).x - origin.x;
-			float relY = pointSet.at(i).y - origin.y;
-			float hyp = std::sqrt(std::pow(relX, 2) + std::pow(relY, 2));
+			pointSet.at(i).x += hyp*cos(pointSet.at(i).angle);
+			pointSet.at(i).y += hyp*sin(pointSet.at(i).angle);
 
-			if (relX < 0) pointSet.at(i).x -= relY / hyp;
-			else pointSet.at(i).x += relY / hyp;
-
-			if (relY < 0) pointSet.at(i).y -= relX / hyp;
-			else pointSet.at(i).y += relX / hyp;*/
 
 			//display particle and decrease alpha to have it fade
 			ofSetColor(particleColors.at(h).at(i).r, particleColors.at(h).at(i).g, particleColors.at(h).at(i).b, particleColors.at(h).at(i).alpha);
-			ofDrawCircle(pointSet.at(i).x, pointSet.at(i).y, 5.f);
-			//particleColors.at(h).at(i).alpha--;
+			ofDrawCircle(pointSet.at(i).x, pointSet.at(i).y, 3.f);
+			particleColors.at(h).at(i).alpha--;
 		}
 	}
+}
+
+void ofApp::renderTrippySinThing() {
+	ofPushMatrix();
+	ofTranslate(ofGetWidth() / 2.0f, ofGetHeight() / 2.0f, 0);
+
+	float r = sin(ofGetElapsedTimef()) * 127 + 128;
+	float g = sin(ofGetElapsedTimef() + 2) * 127 + 128;
+	float b = sin(ofGetElapsedTimef() + 4) * 127 + 128;
+
+	int color = 0;
+	int red = int(r);// *(16 * 16 * 16 * 16);
+	int green = int(g);// *(16 * 16);
+	int blue = int(b);
+
+	ofSetColor(red, green, blue, 64);
+	ofFill();
+	ofSetPolyMode(OF_POLY_WINDING_ODD);
+	ofBeginShape();
+
+	float angleStepConstant = -1;
+	angleStepConstant = ofGetElapsedTimef() / (360 / 64);
+	if (angleStepConstant > 360) angleStepConstant = 0;
+
+	float angleStep = angleStepConstant;
+
+	int maxPoints = 40;
+	float radiusAdder = (ofGetWidth() / 2.0f) / maxPoints;
+	float radius = 0;
+	for (int i = 0; i < maxPoints; i++) {
+		float anglef = (i)* angleStep;
+		float x = radius * cos(anglef);
+		float y = radius * sin(anglef);
+		ofVertex(x, y);
+		radius += radiusAdder;
+	}
+	ofEndShape(OF_CLOSE);
+	ofPopMatrix();
 }
 
 //--------------------------------------------------------------
