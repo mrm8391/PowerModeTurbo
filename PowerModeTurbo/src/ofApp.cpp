@@ -35,7 +35,7 @@ float comboTimer = 10.f;
 float timeSinceLastKey = 0.f;
 
 ofTrueTypeFont player2, player2num;
-float comboWidth;
+float comboWidth, lightWidth;
 
 //--------------------------------------------------------------
 void ofApp::setup(){
@@ -54,6 +54,7 @@ void ofApp::setup(){
 	player2num.setLetterSpacing(1);
 
 	comboWidth = player2.getStringBoundingBox("Combo", 0, 0).width;
+	lightWidth = player2.getStringBoundingBox("Code in the LIGHT", 0, 0).width;
 
 	activeLine = 0;
 	lines = vector<string>();
@@ -78,6 +79,7 @@ void ofApp::draw(){
 	float edgeOfScreen = ofGetScreenWidth();
 
 	player2.drawString("Combo:",edgeOfScreen-2*comboWidth, 50);
+	player2.drawString("Code in the LIGHT", 2*lightWidth, 50);
 
 	//display time left until combo resets
 	float timerWidth = edgeOfScreen - 2 * comboWidth - 20;
@@ -92,7 +94,6 @@ void ofApp::draw(){
 		comboCount = 0;
 		timeSinceLastKey = ofGetElapsedTimef();
 	}
-
 	
 	//display strings
 	ofPushMatrix();
@@ -130,6 +131,30 @@ void ofApp::draw(){
 
 	if (!activeParticles.empty())
 		renderExplosions();
+
+	if (comboCount > 99 && comboCount < 200) {
+		drawPowerMode();
+		renderSpaceEffect();
+	}
+		
+
+	if (comboCount > 199){
+		drawPowerModeSeizure();
+		renderTrippySinThing();
+		renderSpaceEffect();
+	}
+}
+
+void ofApp::drawPowerMode() {
+
+}
+
+void ofApp::renderSpaceEffect() {
+
+}
+
+void ofApp::drawPowerModeSeizure() {
+
 }
 
 

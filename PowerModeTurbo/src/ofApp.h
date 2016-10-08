@@ -13,6 +13,10 @@ class ofApp : public ofBaseApp{
 		void draw();
 		void renderExplosions();
 		void initExplosions(int count, float xOrig, float yOrig);
+		void renderTrippySinThing();
+		void drawPowerModeSeizure();
+		void drawPowerMode();
+		void renderSpaceEffect();
 
 		void keyPressed(int key);
 		void keyReleased(int key);
