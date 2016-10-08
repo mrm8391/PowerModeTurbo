@@ -5,8 +5,12 @@ vector<string> lines;
 //int indicating the current active line
 int activeLine;
 //indicators of the active column in the active string.
-//effective is when a line is moved down but the string is smaller.
-int activeColumn, effectiveActiveColumn;
+int activeColumn;
+//have the cursor indicator blink every X seconds
+float activeColumnTick = 0.5f;
+//size of a character (should all be the same since it's a monospace font)
+float widthOfChar = 0.f, heightOfChar = 0.f;
+
 float spaceBetweenLines = 20.f;
 float xStart = 300.f;
 
@@ -30,7 +34,52 @@ void ofApp::update(){
 
 }
 
-void changeActiveLine(BOOL inc) {
+
+//--------------------------------------------------------------
+void ofApp::draw(){
+
+	ofSetColor(0);
+	consolas.drawString(lineStr, 422, 92);
+
+	
+	ofPushMatrix();
+		ofRectangle bounds = consolas.getStringBoundingBox(lines.at(activeLine), 0, 0);
+		ofTranslate(ofGetScreenWidth() / 16, ofGetScreenHeight() / 2, 0);
+
+		//variable that sets how much the lines grow
+		int growConstant = 4;
+	
+		//set in a variable so that all lines scale the same way
+		float currentTime = ofGetElapsedTimef();
+		ofScale(2.0 + sin(currentTime) / growConstant, 2.0 + sin(currentTime) / growConstant, 1.0);
+
+		for (int i = 0; i < lines.size(); i++) {
+			float yFromCenter = (i - activeLine) * spaceBetweenLines;
+			consolas.drawString(lines.at(i),0,yFromCenter-bounds.height/2);
+		}
+
+		//draw the cursor
+		if (int(currentTime / activeColumnTick) % 2 == 0) {
+
+			//find height of a line
+			bounds = consolas.getStringBoundingBox("G", 0, 0);
+			heightOfChar = bounds.height;
+
+			//find x position of the beginning of the current character by finding the
+			//rect bound of the substring up to that point + 1. It is +1 since that is
+			//the default spacing between characters.
+			bounds = consolas.getStringBoundingBox(lines.at(activeLine).substr(0, activeColumn), 0, 0);
+			widthOfChar = bounds.width+1;
+			ofDrawLine(widthOfChar, 0, widthOfChar, -2 * heightOfChar);
+		}
+		
+	ofPopMatrix();
+
+	
+}
+
+
+void incrActiveLine(BOOL inc) {
 	if (inc) {
 		if (activeLine < lines.size() - 1)
 			activeLine++;
@@ -42,61 +91,64 @@ void changeActiveLine(BOOL inc) {
 }
 
 //--------------------------------------------------------------
-void ofApp::draw(){
-
-	ofSetColor(0);
-	consolas.drawString(lineStr, 422, 92);
-
-	
-	ofPushMatrix();
-	ofRectangle bounds = consolas.getStringBoundingBox(lines.at(activeLine), 0, 0);
-	ofTranslate(ofGetScreenWidth() / 16, ofGetScreenHeight() / 2, 0);
-	
-	//variable that sets how much the lines grow
-	int growConstant = 4;
-
-	//set in a variable so that all lines scale the same way
-	float currentTime = ofGetElapsedTimef();
-	ofScale(2.0 + sin(currentTime) / growConstant, 2.0 + sin(currentTime) / growConstant, 1.0);
-
-		for (int i = 0; i < lines.size(); i++) {
-			float yFromCenter = (i - activeLine) * spaceBetweenLines;
-			consolas.drawString(lines.at(i),0,yFromCenter-bounds.height/2);
-			ofLog() << yFromCenter - bounds.height / 2;
-		}
-		
-	ofPopMatrix();
-	
-}
-
-//--------------------------------------------------------------
 void ofApp::keyPressed(int key){
 	switch (key) {
 	case OF_KEY_RETURN:
 		lines.push_back("");
-		changeActiveLine(TRUE);
+		incrActiveLine(TRUE);
+		activeColumn = 0;
 	break;
 	case OF_KEY_DEL:
 		break;
 	case OF_KEY_BACKSPACE:
-		if (lines.at(activeLine).size() == 0) {
-			if (lines.size() > 0) {
+		if (activeColumn==0) {
+			if (activeLine > 0) {
+				activeColumn = lines.at(activeLine-1).size();
+				lines.at(activeLine - 1).append(lines.at(activeLine));
 				lines.erase(lines.begin() + activeLine);
-				changeActiveLine(FALSE);
+				incrActiveLine(FALSE);
 			}
 		}
 		else {
-			lines.at(activeLine).pop_back();
+			activeColumn--;
+			lines.at(activeLine).erase(lines.at(activeLine).begin() + activeColumn);
 		}
 		break;
 	case OF_KEY_UP:
-		changeActiveLine(FALSE);
+		incrActiveLine(FALSE);
+		if (activeColumn > lines.at(activeLine).size())
+			activeColumn = lines.at(activeLine).size();
 		break;
 	case OF_KEY_DOWN:
-		changeActiveLine(TRUE);
+		incrActiveLine(TRUE);
+		if (activeColumn > lines.at(activeLine).size())
+			activeColumn = lines.at(activeLine).size();
+		break;
+	case OF_KEY_LEFT:
+		if (activeColumn == 0) {
+			if (activeLine > 0) {
+				activeLine--;
+				activeColumn = lines.at(activeLine).size();
+			}
+		}
+		else {
+			activeColumn--;
+		}
+		break;
+	case OF_KEY_RIGHT:
+		if (activeColumn == lines.at(activeLine).size()) {
+			if (activeLine != lines.size()) {
+				activeLine++;
+				activeColumn = 0;
+			}
+		}
+		else {
+			activeColumn++;
+		}
 		break;
 	default:
-		lines.at(activeLine).push_back(char(key));
+		lines.at(activeLine).insert(lines.at(activeLine).begin()+activeColumn,char(key));
+		activeColumn++;
 		break;
 	}
 }
