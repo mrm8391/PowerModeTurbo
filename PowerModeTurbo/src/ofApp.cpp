@@ -1,4 +1,20 @@
 #include "ofApp.h"
+#include <math.h>
+
+typedef struct Point_ {
+	float x, y;
+} Point;
+
+typedef struct ColorAlpha_ {
+	int r, g, b, alpha;
+} ColorAlpha;
+
+//a vector of vectors of active particles from keystrokes.
+//the first point is the origin of the explosion.
+vector<vector<Point>> activeParticles;
+
+//to go alongside the active particles
+vector<vector<ColorAlpha>> particleColors;
 
 //vector of all the lines of characters
 vector<string> lines;
@@ -14,13 +30,30 @@ float widthOfChar = 0.f, heightOfChar = 0.f;
 float spaceBetweenLines = 20.f;
 float xStart = 300.f;
 
+int comboCount = 0;
+float comboTimer = 10.f;
+float timeSinceLastKey = 0.f;
+
+ofTrueTypeFont player2, player2num;
+float comboWidth;
+
 //--------------------------------------------------------------
 void ofApp::setup(){
 
 	ofTrueTypeFont::setGlobalDpi(72);
-	consolas.load("consola.ttf", 14, true, true);
-	consolas.setLineHeight(18.0f);
-	consolas.setLetterSpacing(1.037);
+	consolas.load("consola.ttf", 10, true, true);
+	consolas.setLineHeight(12.0f);
+	consolas.setLetterSpacing(1);
+
+	player2.load("PressStart2P.ttf", 20, true, true);
+	player2.setLineHeight(22.f);
+	player2.setLetterSpacing(1);
+
+	player2num.load("PressStart2P.ttf", 60, true, true);
+	player2num.setLineHeight(22.f);
+	player2num.setLetterSpacing(1);
+
+	comboWidth = player2.getStringBoundingBox("Combo", 0, 0).width;
 
 	activeLine = 0;
 	lines = vector<string>();
@@ -39,11 +72,31 @@ void ofApp::update(){
 void ofApp::draw(){
 
 	ofSetColor(0);
-	consolas.drawString(lineStr, 422, 92);
+	consolas.drawString(lineStr, ofGetScreenWidth()/2, 100);
+
+	//display combo meter
+	float edgeOfScreen = ofGetScreenWidth();
+
+	player2.drawString("Combo:",edgeOfScreen-2*comboWidth, 50);
+
+	//display time left until combo resets
+	float timerWidth = edgeOfScreen - 2 * comboWidth - 20;
+	float percentageLeft = (ofGetElapsedTimef() - timeSinceLastKey) / comboTimer;
+
+	ofDrawRectangle(ofRectangle(timerWidth, 200, (1-percentageLeft)*comboWidth*2, 20));
+
+	ofRectangle bounds = player2num.getStringBoundingBox(std::to_string(comboCount), 0, 0);
+	player2num.drawString(std::to_string(comboCount), timerWidth+comboWidth - bounds.width/2, 150);
+
+	if (ofGetElapsedTimef() - timeSinceLastKey > comboTimer) {
+		comboCount = 0;
+		timeSinceLastKey = ofGetElapsedTimef();
+	}
 
 	
+	//display strings
 	ofPushMatrix();
-		ofRectangle bounds = consolas.getStringBoundingBox(lines.at(activeLine), 0, 0);
+		bounds = consolas.getStringBoundingBox(lines.at(activeLine), 0, 0);
 		ofTranslate(ofGetScreenWidth() / 16, ofGetScreenHeight() / 2, 0);
 
 		//variable that sets how much the lines grow
@@ -75,7 +128,8 @@ void ofApp::draw(){
 		
 	ofPopMatrix();
 
-	
+	if (!activeParticles.empty())
+		rendersExplosions();
 }
 
 
@@ -94,7 +148,8 @@ void incrActiveLine(BOOL inc) {
 void ofApp::keyPressed(int key){
 	switch (key) {
 	case OF_KEY_RETURN:
-		lines.push_back("");
+		lines.insert(lines.begin()+activeLine+1,lines.at(activeLine).substr(activeColumn,lines.at(activeLine).size()));
+		lines.at(activeLine).erase(activeColumn, lines.at(activeLine).size() - activeColumn);
 		incrActiveLine(TRUE);
 		activeColumn = 0;
 	break;
@@ -150,6 +205,78 @@ void ofApp::keyPressed(int key){
 		lines.at(activeLine).insert(lines.at(activeLine).begin()+activeColumn,char(key));
 		activeColumn++;
 		break;
+	}
+
+	comboCount++;
+	timeSinceLastKey = ofGetElapsedTimef();
+	initExplosions(10, ofRandom(0,ofGetScreenWidth()),ofRandom(0, ofGetScreenHeight()));
+}
+
+void ofApp::initExplosions(int count,float xOrig,float yOrig) {
+	vector<Point> particles;
+	vector<ColorAlpha> colors;
+
+	Point origin;
+	origin.x = xOrig;
+	origin.y = yOrig;
+	particles.push_back(origin);
+
+	ColorAlpha originCol;
+	originCol.r = 0; originCol.g = 0; originCol.b = 0;
+	originCol.alpha = 255;
+	colors.push_back(originCol);
+
+	for (int i = 1; i < count; i++) {
+		ColorAlpha col;
+		col.r = ofRandom(0, 255);
+		col.g= ofRandom(0, 255);
+		col.b= ofRandom(0, 255);
+		col.alpha = 255;
+		colors.push_back(col);
+
+		//set x and y to be 1 unit away from the origin
+		Point p;
+		float angle = ofRandom(0, 360);
+		p.x = 500;// sin(angle) / tan(angle);
+		p.y = 500;// tan(angle)*cos(angle);
+		particles.push_back(p);
+	}
+
+	activeParticles.push_back(particles);
+	particleColors.push_back(colors);
+}
+
+void ofApp::rendersExplosions() {
+	for(int h=0;h<activeParticles.size();h++){
+		vector<Point> pointSet = activeParticles.at(h);
+		Point origin = pointSet.at(0);
+
+		//if alpha is zero, delete the particles
+		if (particleColors.at(h).at(0).alpha <= 0) {
+			activeParticles.erase(activeParticles.begin()+h);
+			particleColors.erase(particleColors.begin() + h);
+			h--;
+		}
+
+		particleColors.at(h).at(0).alpha--;
+
+		for (int i = 1; i < pointSet.size(); i++) {
+
+			/*float relX = pointSet.at(i).x - origin.x;
+			float relY = pointSet.at(i).y - origin.y;
+			float hyp = std::sqrt(std::pow(relX, 2) + std::pow(relY, 2));
+
+			if (relX < 0) pointSet.at(i).x -= relY / hyp;
+			else pointSet.at(i).x += relY / hyp;
+
+			if (relY < 0) pointSet.at(i).y -= relX / hyp;
+			else pointSet.at(i).y += relX / hyp;*/
+
+			//display particle and decrease alpha to have it fade
+			ofSetColor(particleColors.at(h).at(i).r, particleColors.at(h).at(i).g, particleColors.at(h).at(i).b, particleColors.at(h).at(i).alpha);
+			ofDrawCircle(pointSet.at(i).x, pointSet.at(i).y, 5.f);
+			//particleColors.at(h).at(i).alpha--;
+		}
 	}
 }
 
