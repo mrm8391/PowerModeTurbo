@@ -6,7 +6,6 @@ class ofApp : public ofBaseApp{
 
 	public:
 		ofTrueTypeFont consolas;
-		string lineStr = "You never know if you don't go";
 
 		ofApp();
 		ofApp(char *file);

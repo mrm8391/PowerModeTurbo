@@ -103,7 +103,6 @@ void ofApp::update(){
 void ofApp::draw(){
 
 	ofSetColor(0);
-	consolas.drawString(lineStr, ofGetScreenWidth()/2, 100);
 
 	//display combo meter
 	float edgeOfScreen = ofGetScreenWidth();
