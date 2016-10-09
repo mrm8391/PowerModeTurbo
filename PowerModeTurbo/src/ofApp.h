@@ -8,6 +8,9 @@ class ofApp : public ofBaseApp{
 		ofTrueTypeFont consolas;
 		string lineStr = "You never know if you don't go";
 
+		ofApp();
+		ofApp(char *file);
+
 		void setup();
 		void update();
 		void draw();
@@ -16,7 +19,15 @@ class ofApp : public ofBaseApp{
 		void renderTrippySinThing();
 		void drawPowerModeSeizure();
 		void drawPowerMode();
-		void renderSpaceEffect();
+		void renderShiftingTriangles();
+		void drawHappyText();
+		void continueHappyText();
+		void strobeEffect();
+		void strobeEffectSlow();
+
+		void readInFile(string fileName);
+		void outputToFile(string fileName);
+		void exit();
 
 		void keyPressed(int key);
 		void keyReleased(int key);

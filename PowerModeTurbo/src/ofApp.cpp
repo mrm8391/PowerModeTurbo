@@ -1,5 +1,9 @@
 #include "ofApp.h"
 #include <math.h>
+#include <locale>
+#include <iostream>
+#include <fstream>
+
 
 typedef struct Point_ {
 	float x, y, angle;
@@ -8,6 +12,11 @@ typedef struct Point_ {
 typedef struct ColorAlpha_ {
 	int r, g, b, alpha;
 } ColorAlpha;
+
+vector<ColorAlpha> solidColors = {ColorAlpha{255,0,255,255}, ColorAlpha{255,0,0,255},ColorAlpha{255,128,0,255},
+ColorAlpha{255,255,0,255},ColorAlpha{0,255,0,255},ColorAlpha{0,0,255,255},ColorAlpha{128,0,255,255}};
+
+int currentColor = 0;
 
 //a vector of vectors of active particles from keystrokes.
 //the first point is the origin of the explosion.
@@ -37,8 +46,28 @@ float timeSinceLastKey = 0.f;
 ofTrueTypeFont player2, player2num;
 float comboWidth, lightWidth;
 
+std::locale loc("C");
+
+vector<string> happyText = {"Psychedelic!", "WHOA", "Far out!", "Keep it up!", "C-C-C-COMBO", "Great!", "Quite.", "I'm getting dizzy...", "M-M-MONSTER KILL", "Top notch!", "Mo' combos, mo' problem", "Simply amazing", "Splendid!", "That keyboard's gonna hurt tomorrow", "I can't even type that fast!", "Keyboard wizard","Mama would be proud"};
+string currentHappyLine = "";
+Point hLine;
+float hLineAlpha;
+int lastHappyLine = 0;
+
+string fileN = "";
+
+ofApp::ofApp() :ofBaseApp() {
+
+}
+
+ofApp::ofApp(char *file) : ofBaseApp() {
+	fileN = string(file);
+}
+
 //--------------------------------------------------------------
 void ofApp::setup(){
+
+	ofBackground(166, 166, 166);
 
 	ofTrueTypeFont::setGlobalDpi(72);
 	consolas.load("consola.ttf", 10, true, true);
@@ -58,9 +87,10 @@ void ofApp::setup(){
 
 	activeLine = 0;
 	lines = vector<string>();
-	lines.push_back("I");
-	lines.push_back("love");
-	lines.push_back("dogs");
+	lines.push_back("");
+
+	if(fileN.size()>0)
+		readInFile(fileN);
 }
 
 //--------------------------------------------------------------
@@ -79,7 +109,7 @@ void ofApp::draw(){
 	float edgeOfScreen = ofGetScreenWidth();
 
 	player2.drawString("Combo:",edgeOfScreen-2*comboWidth, 50);
-	player2.drawString("Code in the LIGHT", 2*lightWidth, 50);
+	player2.drawString("Code in the LIGHT", edgeOfScreen-1.5*lightWidth, ofGetScreenHeight()-50);
 
 	//display time left until combo resets
 	float timerWidth = edgeOfScreen - 2 * comboWidth - 20;
@@ -90,6 +120,13 @@ void ofApp::draw(){
 	ofRectangle bounds = player2num.getStringBoundingBox(std::to_string(comboCount), 0, 0);
 	player2num.drawString(std::to_string(comboCount), timerWidth+comboWidth - bounds.width/2, 150);
 
+	//display combo text
+	if (comboCount % 10 == 0 && comboCount!=lastHappyLine) {
+		drawHappyText();
+		lastHappyLine = comboCount;
+	}
+	continueHappyText();
+
 	if (ofGetElapsedTimef() - timeSinceLastKey > comboTimer) {
 		comboCount = 0;
 		timeSinceLastKey = ofGetElapsedTimef();
@@ -97,6 +134,7 @@ void ofApp::draw(){
 	
 	//display strings
 	ofPushMatrix();
+		ofSetColor(0);
 		bounds = consolas.getStringBoundingBox(lines.at(activeLine), 0, 0);
 		ofTranslate(ofGetScreenWidth() / 16, ofGetScreenHeight() / 2, 0);
 
@@ -108,8 +146,19 @@ void ofApp::draw(){
 		ofScale(2.0 + sin(currentTime) / growConstant, 2.0 + sin(currentTime) / growConstant, 1.0);
 
 		for (int i = 0; i < lines.size(); i++) {
+			string temp;
+			if (i <= 9) temp = "000";
+			else if (i <= 99) temp = "00";
+			else if (i <= 999) temp = "0";
+			else temp = "";
+
+			temp.append(std::to_string(i));
+			temp.append("| ");
+			//temp.append(lines.at(i));
+
 			float yFromCenter = (i - activeLine) * spaceBetweenLines;
 			consolas.drawString(lines.at(i),0,yFromCenter-bounds.height/2);
+			consolas.drawString(temp, -50, yFromCenter - bounds.height / 2);
 		}
 
 		//draw the cursor
@@ -133,28 +182,106 @@ void ofApp::draw(){
 		renderExplosions();
 
 	if (comboCount > 99 && comboCount < 200) {
+
+		int r = int(ofRandom(0, 255));
+		int g = int(ofRandom(0, 255));
+		int b = int(ofRandom(0, 255));
+		ofSetColor(r, g, b);
 		drawPowerMode();
-		renderSpaceEffect();
+
+		ofSetColor(r, g, b,128);
+		renderShiftingTriangles();
+		strobeEffectSlow();
 	}
 		
 
 	if (comboCount > 199){
-		drawPowerModeSeizure();
+
+		float r = sin(ofGetElapsedTimef()) * 127 + 128;
+		float g = sin(ofGetElapsedTimef() + 2) * 127 + 128;
+		float b = sin(ofGetElapsedTimef() + 4) * 127 + 128;
+
+		int color = 0;
+		int red = int(r);// *(16 * 16 * 16 * 16);
+		int green = int(g);// *(16 * 16);
+		int blue = int(b);
+		ofSetColor(red, green, blue, 64);
+		ofFill();
+
 		renderTrippySinThing();
-		renderSpaceEffect();
+		renderShiftingTriangles();
+
+		red = 255 - red;
+		green = 255 - green;
+		blue = 255 - blue;
+		ofSetColor(red, green, blue,255);
+		ofFill();
+		drawPowerModeSeizure();
+
+	}
+
+	if (comboCount > 499) {
+		strobeEffect();
+	}
+}
+
+void ofApp::drawHappyText() {
+	currentHappyLine= happyText.at(std::rand() % happyText.size());
+	ofRectangle bounds = player2.getStringBoundingBox(currentHappyLine,0,0);
+	hLine.x = ofGetScreenWidth() - bounds.width - 10;
+	hLine.y = 250;
+	hLineAlpha = 255;
+}
+
+void ofApp::continueHappyText() {
+	if (currentHappyLine.size() > 0) {
+		ofSetColor(0, 0, 0, hLineAlpha--);
+		hLine.y += 1;
+		player2.drawString(currentHappyLine, hLine.x, hLine.y);
+
+		if (hLineAlpha == 0) currentHappyLine = "";
 	}
 }
 
 void ofApp::drawPowerMode() {
-
+	float currentTime = ofGetElapsedTimef();
+	ofRectangle bounds=player2.getStringBoundingBox("POWER MODE", 0, 0);
+	ofPushMatrix();
+		ofTranslate(ofGetScreenWidth() / 2, ofGetScreenHeight() - 50);
+		ofScale(2.0 + sin(currentTime) / 2, 2.0 + sin(currentTime) / 2, 1.0);
+		player2.drawString("POWER MODE", -bounds.width/2, bounds.height);
+	ofPopMatrix();
 }
 
-void ofApp::renderSpaceEffect() {
+void ofApp::strobeEffect() {
+	ColorAlpha col = solidColors.at(currentColor++%solidColors.size());
+	ofPushMatrix();
+		ofSetColor(col.r, col.g, col.b, 32);
+		ofDrawRectangle(0, 0, ofGetScreenWidth(), ofGetScreenHeight());
+	ofPopMatrix();
+}
 
+void ofApp::strobeEffectSlow() {
+	float slowConstant = 2.f;
+	int timeSlow=int(ofGetElapsedTimef() / slowConstant);
+
+	ColorAlpha col = solidColors.at(timeSlow%solidColors.size());
+	ofPushMatrix();
+	ofSetColor(col.r, col.g, col.b, 32);
+	ofDrawRectangle(0, 0, ofGetScreenWidth(), ofGetScreenHeight());
+	ofPopMatrix();
 }
 
 void ofApp::drawPowerModeSeizure() {
+	float currentTime = ofGetElapsedTimef();
+	ofRectangle bounds = player2num.getStringBoundingBox("POWER MODE TURBO", 0, 0);
 
+	ofPushMatrix();
+		float maxDelta = 50;
+		ofTranslate(ofGetScreenWidth() / 2, ofGetScreenHeight() -200);
+		ofScale(2.0 + sin(currentTime), 2.0 + sin(currentTime), 1.0);
+		player2num.drawString("POWER MODE TURBO", -bounds.width / 2 + ofRandom(-maxDelta, maxDelta), bounds.height + ofRandom(-maxDelta, maxDelta));
+	ofPopMatrix();
 }
 
 
@@ -176,9 +303,20 @@ void ofApp::keyPressed(int key){
 		lines.insert(lines.begin()+activeLine+1,lines.at(activeLine).substr(activeColumn,lines.at(activeLine).size()));
 		lines.at(activeLine).erase(activeColumn, lines.at(activeLine).size() - activeColumn);
 		incrActiveLine(TRUE);
+		comboCount++;
+		timeSinceLastKey = ofGetElapsedTimef();
 		activeColumn = 0;
 	break;
 	case OF_KEY_DEL:
+		if (activeColumn == lines.at(activeLine).size()) {
+			if (activeLine + 1 < lines.size()) {
+				lines.at(activeLine).append(lines.at(activeLine + 1));
+				lines.erase(lines.begin() + activeLine + 1);
+			}
+		}
+		else {
+			lines.at(activeLine).erase(lines.at(activeLine).begin() + activeColumn);
+		}
 		break;
 	case OF_KEY_BACKSPACE:
 		if (activeColumn==0) {
@@ -217,7 +355,7 @@ void ofApp::keyPressed(int key){
 		break;
 	case OF_KEY_RIGHT:
 		if (activeColumn == lines.at(activeLine).size()) {
-			if (activeLine != lines.size()) {
+			if (activeLine < lines.size()-1) {
 				activeLine++;
 				activeColumn = 0;
 			}
@@ -226,14 +364,23 @@ void ofApp::keyPressed(int key){
 			activeColumn++;
 		}
 		break;
+	case OF_KEY_TAB:
+		for(int i=0;i<4;i++)
+			lines.at(activeLine).insert(lines.at(activeLine).begin() + activeColumn, ' ');
+		activeColumn += 4;
+		comboCount++;
+		timeSinceLastKey = ofGetElapsedTimef();
+		break;
 	default:
-		lines.at(activeLine).insert(lines.at(activeLine).begin()+activeColumn,char(key));
-		activeColumn++;
+		if (std::isprint(key,loc)) {
+			lines.at(activeLine).insert(lines.at(activeLine).begin() + activeColumn, char(key));
+			activeColumn++;
+		}
+		comboCount++;
+		timeSinceLastKey = ofGetElapsedTimef();
 		break;
 	}
 
-	comboCount++;
-	timeSinceLastKey = ofGetElapsedTimef();
 	initExplosions(10, ofRandom(0, ofGetScreenWidth()), ofRandom(0, ofGetScreenHeight()));
 }
 
@@ -305,21 +452,55 @@ void ofApp::renderExplosions() {
 	}
 }
 
+void ofApp::renderShiftingTriangles() {
+
+	float middle = (ofGetScreenHeight() / 2);
+	float tri1x = 300;
+	float tri2x = ofGetScreenWidth() - 300;
+	float maxDrift=ofGetScreenHeight()/2-200;
+	float triangleLength = 100;
+	float xyPos = std::sqrt(std::pow(triangleLength,2) / 2);
+	float rotationConstant = 1 / 64.f;
+	float actualY = middle + sin(ofGetElapsedTimef()*4)*maxDrift;
+
+	float inTriLen = 10;
+	ofSetPolyMode(OF_POLY_WINDING_ODD);
+	
+
+	ofPushMatrix();
+		ofTranslate(tri1x, actualY, 0);
+		ofRotateZ(ofGetElapsedTimef()/rotationConstant);
+		ofBeginShape();
+		ofVertex(-xyPos, xyPos);
+		ofVertex(xyPos, xyPos);
+		ofVertex(0, -triangleLength);
+
+		ofVertex(-xyPos+inTriLen, xyPos-inTriLen);
+		ofVertex(xyPos- inTriLen, xyPos- inTriLen);
+		ofVertex(0, -triangleLength+ inTriLen);
+		ofEndShape();
+	ofPopMatrix();
+
+	ofPushMatrix();
+		ofTranslate(tri2x, actualY, 0);
+		ofRotateZ(ofGetElapsedTimef() / rotationConstant);
+		ofBeginShape();
+		ofVertex(-xyPos, xyPos);
+		ofVertex(xyPos, xyPos);
+		ofVertex(0, -triangleLength);
+
+		ofVertex(-xyPos + inTriLen, xyPos - inTriLen);
+		ofVertex(xyPos - inTriLen, xyPos - inTriLen);
+		ofVertex(0, -triangleLength + inTriLen);
+		ofEndShape();
+	ofPopMatrix();
+}
+
 void ofApp::renderTrippySinThing() {
 	ofPushMatrix();
 	ofTranslate(ofGetWidth() / 2.0f, ofGetHeight() / 2.0f, 0);
 
-	float r = sin(ofGetElapsedTimef()) * 127 + 128;
-	float g = sin(ofGetElapsedTimef() + 2) * 127 + 128;
-	float b = sin(ofGetElapsedTimef() + 4) * 127 + 128;
-
-	int color = 0;
-	int red = int(r);// *(16 * 16 * 16 * 16);
-	int green = int(g);// *(16 * 16);
-	int blue = int(b);
-
-	ofSetColor(red, green, blue, 64);
-	ofFill();
+	
 	ofSetPolyMode(OF_POLY_WINDING_ODD);
 	ofBeginShape();
 
@@ -391,4 +572,35 @@ void ofApp::gotMessage(ofMessage msg){
 //--------------------------------------------------------------
 void ofApp::dragEvent(ofDragInfo dragInfo){ 
 
+}
+
+void ofApp::readInFile(string fileName) {
+	ifstream theFile;
+	theFile.open(fileName,ios::binary);
+
+	string str;
+	while (std::getline(theFile,str)) {
+		lines.push_back(str);
+	}
+
+	theFile.close();
+}
+
+void ofApp::outputToFile(string fileName) {
+	ofstream theFile;
+	theFile.open(fileName, ios::binary);
+
+	for(string str : lines) {
+		theFile.write(str.c_str(),str.size());
+		theFile.write("\n", 1);
+	}
+
+	theFile.close();
+}
+
+void ofApp::exit() {
+	if (fileN.size() > 0)
+		outputToFile(fileN);
+	else
+		outputToFile("default.txt");
 }
